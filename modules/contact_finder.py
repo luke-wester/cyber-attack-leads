@@ -1,6 +1,7 @@
 import requests
 from config import SERPAPI_KEY
 
+
 def find_ciso_linkedin(company_name):
     query = f'site:linkedin.com/in "CISO" "{company_name}"'
     url = "https://serpapi.com/search"
@@ -8,15 +9,26 @@ def find_ciso_linkedin(company_name):
         "engine": "google",
         "q": query,
         "api_key": SERPAPI_KEY,
-        "num": 3
+        "num": 3,
     }
-    res = requests.get(url, params=params)
+
+    try:
+        res = requests.get(url, params=params, timeout=20)
+        res.raise_for_status()
+        results = res.json().get("organic_results", [])
+    except Exception as e:
+        print(f"Error finding CISO contacts for {company_name}: {e}")
+        return []
+
     people = []
-    for result in res.json().get("organic_results", []):
+    for result in results:
+        link = result.get("link")
+        if not link:
+            continue
         people.append({
-            "name": result.get("title"),
+            "name": result.get("title", "Unknown"),
             "title": "CISO",
-            "linkedin": result.get("link"),
-            "email": "Unknown"
+            "linkedin": link,
+            "email": "Unknown",
         })
     return people

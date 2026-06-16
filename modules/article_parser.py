@@ -1,64 +1,87 @@
 import openai
-from newspaper import Article
+from newspaper import Article, Config
 from config import OPENAI_API_KEY
 
 openai.api_key = OPENAI_API_KEY
 
+
+def article_config():
+    config = Config()
+    config.browser_user_agent = "CyberAttackLeads/1.0"
+    config.request_timeout = 12
+    return config
+
+
 def extract_company_from_article(url):
-    article = Article(url)
+    article = Article(url, config=article_config())
     try:
         article.download()
         article.parse()
     except Exception as e:
-        print(f"Download error: {e}")
+        print(f"Download error for {url}: {e}")
+        return None, None
+    if not article.text:
         return None, None
     return ask_gpt_for_company(article.text), article.text
 
+
 def ask_gpt_for_company(content):
     prompt = (
-        "Extract the name of the company affected by the breach in this article:\n"
+        "Extract the name of the company affected by the breach in this article. "
+        "Return only the company name:\n"
         f"{content[:3000]}"
     )
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=50
+            max_tokens=50,
+            request_timeout=20,
         )
         return response.choices[0].message.content.strip()
-    except Exception:
+    except Exception as e:
+        print(f"OpenAI company extraction error: {e}")
         return None
+
 
 def summarize_breach(content):
     prompt = (
         "Summarize the following breach in one concise sentence for a sales rep to understand what happened:\n"
-        f"{content}"
+        f"{content[:5000]}"
     )
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=80
+            max_tokens=80,
+            request_timeout=20,
         )
         return response.choices[0].message.content.strip()
-    except Exception:
+    except Exception as e:
+        print(f"OpenAI summary error: {e}")
         return "Summary not available"
+
 
 def score_breach_severity(summary):
     prompt = (
-        "Score this breach summary from 1 to 100 based on how serious the breach sounds:\n"
+        "Score this breach summary from 1 to 100 based on how serious the breach sounds. "
+        "Return only the number:\n"
         f"{summary}"
     )
     try:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=10
+            max_tokens=10,
+            request_timeout=20,
         )
-        score = int(''.join(filter(str.isdigit, response.choices[0].message.content)))
+        digits = ''.join(filter(str.isdigit, response.choices[0].message.content))
+        score = int(digits) if digits else 50
         return max(1, min(score, 100))
-    except Exception:
+    except Exception as e:
+        print(f"OpenAI severity score error: {e}")
         return 50
+
 
 def generate_email_draft(name, title, company, breach_summary, source, date):
     prompt = (
@@ -72,8 +95,10 @@ def generate_email_draft(name, title, company, breach_summary, source, date):
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200
+            max_tokens=200,
+            request_timeout=20,
         )
         return response.choices[0].message.content.strip()
-    except Exception:
+    except Exception as e:
+        print(f"OpenAI email draft error: {e}")
         return "Email draft unavailable."

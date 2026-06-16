@@ -123,6 +123,9 @@ PAGE_TEMPLATE = """
     tr:last-child td { border-bottom: 0; }
     a { color: #075985; }
     .empty { padding: 24px; background: var(--surface); border-radius: 8px; color: var(--muted); }
+    .busy { display: none; margin: 0 0 20px; color: var(--muted); font-weight: 700; }
+    body.is-submitting .busy { display: block; }
+    body.is-submitting button[type="submit"] { opacity: 0.7; cursor: progress; }
     @media (max-width: 720px) {
       header, .summary { display: grid; align-items: start; }
       form.controls { display: grid; }
@@ -143,7 +146,7 @@ PAGE_TEMPLATE = """
       <div class="alert">{{ error }}</div>
     {% endif %}
 
-    <form class="controls" method="post" action="/generate">
+    <form class="controls" method="post" action="/generate" onsubmit="document.body.classList.add('is-submitting'); this.querySelector('button[type=submit]').disabled = true;">
       <label>
         Time range
         <select name="recency">
@@ -158,6 +161,7 @@ PAGE_TEMPLATE = """
       </label>
       <button type="submit">Generate lead list</button>
     </form>
+    <p class="busy">Generating leads. This can take up to a minute on Render's free tier.</p>
 
     {% if rows is not none %}
       <section class="summary">
@@ -301,8 +305,17 @@ def generate():
             article_count=article_count,
         ), 500
 
-    rows = generate_leads(recency_label, article_count)
-    csv_text = rows_to_csv(rows)
+    try:
+        rows = generate_leads(recency_label, article_count)
+        csv_text = rows_to_csv(rows)
+    except Exception as exc:
+        app.logger.exception("Lead generation failed")
+        return render_page(
+            error=f"Lead generation failed: {exc}",
+            selected_recency=recency_label,
+            article_count=article_count,
+        ), 500
+
     return render_page(
         rows=rows,
         csv_text=csv_text,
