@@ -1,5 +1,7 @@
 import io
 import os
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 from flask import Flask, render_template_string, request, send_file
@@ -15,6 +17,8 @@ from modules.contact_finder import find_ciso_linkedin
 from modules.news_search import search_breach_articles
 
 app = Flask(__name__)
+EXECUTOR = ThreadPoolExecutor(max_workers=1)
+JOBS = {}
 
 RECENCY_MAP = {
     "Past 24 hours": "qdr:d",
@@ -24,6 +28,43 @@ RECENCY_MAP = {
     "Past month": "qdr:m",
     "Past 90 days": "cdr:1,90",
 }
+
+JOB_TEMPLATE = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {% if status in ["queued", "running"] %}<meta http-equiv="refresh" content="4">{% endif %}
+  <title>Cyber Attack Leads</title>
+  <style>
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17202a; background: white; }
+    main { width: min(760px, calc(100vw - 32px)); margin: 0 auto; padding: 56px 0; }
+    h1 { margin: 0 0 10px; font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1; }
+    p { color: #667085; line-height: 1.55; }
+    .panel { margin-top: 26px; padding: 18px; border: 1px solid #d7dde5; border-radius: 8px; background: #f6f8fb; }
+    .bar { height: 8px; overflow: hidden; background: #d7dde5; border-radius: 999px; }
+    .bar span { display: block; height: 100%; width: 38%; background: #0f766e; border-radius: inherit; animation: slide 1.2s infinite ease-in-out; }
+    a, button { color: #075985; }
+    @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Cyber Attack Leads</h1>
+    <div class="panel">
+      {% if status in ["queued", "running"] %}
+        <div class="bar"><span></span></div>
+        <p><strong>{{ status|title }}.</strong> Generating leads in the background. This page refreshes automatically.</p>
+      {% elif status == "missing" %}
+        <p>This job is no longer available. Start a new lead list.</p>
+        <p><a href="/">Back to generator</a></p>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>
+"""
 
 PAGE_TEMPLATE = """
 <!doctype html>
@@ -292,6 +333,23 @@ def index():
     return render_page()
 
 
+def run_job(job_id, recency_label, article_count):
+    JOBS[job_id]["status"] = "running"
+    try:
+        rows = generate_leads(recency_label, article_count)
+        JOBS[job_id].update({
+            "status": "complete",
+            "rows": rows,
+            "csv_text": rows_to_csv(rows),
+        })
+    except Exception as exc:
+        app.logger.exception("Lead generation failed")
+        JOBS[job_id].update({
+            "status": "error",
+            "error": str(exc),
+        })
+
+
 @app.post("/generate")
 def generate():
     missing_keys = missing_required_keys()
@@ -305,22 +363,40 @@ def generate():
             article_count=article_count,
         ), 500
 
-    try:
-        rows = generate_leads(recency_label, article_count)
-        csv_text = rows_to_csv(rows)
-    except Exception as exc:
-        app.logger.exception("Lead generation failed")
+    job_id = uuid.uuid4().hex
+    JOBS[job_id] = {
+        "status": "queued",
+        "rows": [],
+        "csv_text": "",
+        "error": "",
+        "selected_recency": recency_label,
+        "article_count": article_count,
+    }
+    EXECUTOR.submit(run_job, job_id, recency_label, article_count)
+    return job_status(job_id), 202
+
+
+@app.get("/jobs/<job_id>")
+def job_status(job_id):
+    job = JOBS.get(job_id)
+    if not job:
+        return render_template_string(JOB_TEMPLATE, status="missing"), 404
+
+    if job["status"] in {"queued", "running"}:
+        return render_template_string(JOB_TEMPLATE, status=job["status"])
+
+    if job["status"] == "error":
         return render_page(
-            error=f"Lead generation failed: {exc}",
-            selected_recency=recency_label,
-            article_count=article_count,
+            error="Lead generation failed: " + job.get("error", "Unknown error"),
+            selected_recency=job.get("selected_recency", "Past 24 hours"),
+            article_count=job.get("article_count", 10),
         ), 500
 
     return render_page(
-        rows=rows,
-        csv_text=csv_text,
-        selected_recency=recency_label,
-        article_count=article_count,
+        rows=job.get("rows", []),
+        csv_text=job.get("csv_text", ""),
+        selected_recency=job.get("selected_recency", "Past 24 hours"),
+        article_count=job.get("article_count", 10),
     )
 
 
