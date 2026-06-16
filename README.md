@@ -47,17 +47,17 @@
 - Control how many articles to analyze
 - Real-time progress logging in the app
 - Clean UI with plain-English summaries
-- Built in Streamlit for fast testing and sharing
+- Flask web interface ready for Render hosting
 
 ---
 
 ## 🔍 Technologies Used
 
-- **Streamlit** – App interface
-- **OpenAI GPT-3.5** – Breach summaries, severity scores, and email drafts
-- **SerpAPI** – Google News + LinkedIn search
-- **newspaper3k** – Article parsing
-- **pandas** – CSV generation
+- **Flask** - App interface
+- **OpenAI GPT-3.5** - Breach summaries, severity scores, and email drafts
+- **SerpAPI** - Google News + LinkedIn search
+- **newspaper3k** - Article parsing
+- **pandas** - CSV generation
 
 ---
 
@@ -65,7 +65,7 @@
 
 ```bash
 cd ~/Documents/cyber-attack-leads
-python3 -m streamlit run app.py
+python3 app.py
 ```
 
 ## Deploy on Render
@@ -75,4 +75,4 @@ This repo includes a `render.yaml` Blueprint for a Render web service. During Bl
 - `SERPAPI_KEY`
 - `OPENAI_API_KEY`
 
-The service uses `pip install -r requirements.txt` to build and starts Streamlit with Render's provided `$PORT`.
+The service uses `pip install -r requirements.txt` to build and starts the Flask app with Gunicorn.
