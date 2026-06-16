@@ -4,7 +4,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
-from flask import Flask, render_template_string, request, send_file
+from flask import Flask, redirect, render_template_string, request, send_file, url_for
 
 from config import missing_required_keys
 from modules.article_parser import (
@@ -373,7 +373,7 @@ def generate():
         "article_count": article_count,
     }
     EXECUTOR.submit(run_job, job_id, recency_label, article_count)
-    return job_status(job_id), 202
+    return redirect(url_for("job_status", job_id=job_id), code=303)
 
 
 @app.get("/jobs/<job_id>")
