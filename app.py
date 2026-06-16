@@ -350,6 +350,11 @@ def run_job(job_id, recency_label, article_count):
         })
 
 
+@app.get("/generate")
+def generate_get():
+    return redirect(url_for("index"), code=303)
+
+
 @app.post("/generate")
 def generate():
     missing_keys = missing_required_keys()
