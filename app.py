@@ -206,7 +206,7 @@ PAGE_TEMPLATE = """
 
     {% if rows is not none %}
       <section class="summary">
-        <p>{{ rows|length }} lead{{ '' if rows|length == 1 else 's' }} generated.</p>
+        <p>{{ rows|length }} lead{{ '' if rows|length == 1 else 's' }} generated from up to {{ article_count }} article{{ '' if article_count == 1 else 's' }}.</p>
         {% if csv_text %}
           <form method="post" action="/download">
             <textarea name="csv_text" hidden>{{ csv_text }}</textarea>

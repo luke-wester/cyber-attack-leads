@@ -32,8 +32,10 @@ def search_breach_articles(query="data breach OR cyber attack", tbs="qdr:d", num
                 "source": article.get("source", "Unknown"),
                 "date": article.get("date", "Unknown"),
             })
+            if len(articles) >= num_results:
+                break
 
-        return articles
+        return articles[:num_results]
 
     except Exception as e:
         print(f"Error pulling articles from SerpAPI: {e}")
