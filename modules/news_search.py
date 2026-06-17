@@ -28,6 +28,7 @@ def search_breach_articles(query="data breach OR cyber attack", tbs="qdr:d", num
             if not link:
                 continue
             articles.append({
+                "title": article.get("title", "Untitled article"),
                 "url": link,
                 "source": article.get("source", "Unknown"),
                 "date": article.get("date", "Unknown"),

@@ -220,24 +220,30 @@ PAGE_TEMPLATE = """
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Title</th>
-                <th>Company</th>
-                <th>Severity</th>
-                <th>Source</th>
-                <th>Article</th>
-                <th>Breach Summary</th>
+                <th>Article Title</th>
+                <th>Publishing Outlet</th>
+                <th>Publishing Date</th>
+                <th>Company Mentioned</th>
+                <th>CISO LinkedIn</th>
+                <th>Severity Score</th>
+                <th>Article Summary</th>
               </tr>
             </thead>
             <tbody>
               {% for row in rows %}
                 <tr>
-                  <td>{{ row.name }}</td>
-                  <td>{{ row.title }}</td>
-                  <td>{{ row.company }}</td>
-                  <td>{{ row.severity_score }}</td>
+                  <td><a href="{{ row.article }}" target="_blank" rel="noreferrer">{{ row.article_title }}</a></td>
                   <td>{{ row.source }}</td>
-                  <td><a href="{{ row.article }}" target="_blank" rel="noreferrer">Open</a></td>
+                  <td>{{ row.date }}</td>
+                  <td>{{ row.company }}</td>
+                  <td>
+                    {% if row.linkedin %}
+                      <a href="{{ row.linkedin }}" target="_blank" rel="noreferrer">{{ row.name }}</a>
+                    {% else %}
+                      {{ row.name }}
+                    {% endif %}
+                  </td>
+                  <td>{{ row.severity_score }}</td>
                   <td>{{ row.breach_summary }}</td>
                 </tr>
               {% endfor %}
@@ -271,6 +277,7 @@ def generate_leads(recency_label, article_count):
 
     for article in articles:
         url = article["url"]
+        article_title = article.get("title", "Untitled article")
         source = article.get("source", "Unknown")
         date = article.get("date", "Unknown")
 
@@ -303,6 +310,7 @@ def generate_leads(recency_label, article_count):
                     date=date,
                 )
             person.update({
+                "article_title": article_title,
                 "company": company,
                 "article": url,
                 "source": source,
