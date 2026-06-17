@@ -179,7 +179,7 @@ PAGE_TEMPLATE = """
     <header>
       <div>
         <h1>Cyber Attack Leads</h1>
-        <p>Pick a target number of leads. The app scans recent breach news, identifies the impacted company, attempts to find a CISO LinkedIn match, scores severity, and summarizes each article.</p>
+        <p>Pick a target number of leads. The app scans recent cybersecurity attacks and provides company and contact information.</p>
       </div>
     </header>
 
