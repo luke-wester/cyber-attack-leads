@@ -12,6 +12,25 @@ def article_config():
     return config
 
 
+def clean_company_name(company):
+    if not company:
+        return None
+    cleaned = company.strip().splitlines()[0].strip(' \"\'.:;,-')
+    prefixes = [
+        "the affected company is ",
+        "the impacted company is ",
+        "affected company: ",
+        "impacted company: ",
+        "company: ",
+    ]
+    lowered = cleaned.lower()
+    for prefix in prefixes:
+        if lowered.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip(' \"\'.:;,-')
+            break
+    return cleaned or None
+
+
 def extract_company_from_article(url):
     article = Article(url, config=article_config())
     try:
@@ -22,7 +41,7 @@ def extract_company_from_article(url):
         return None, None
     if not article.text:
         return None, None
-    return ask_gpt_for_company(article.text), article.text
+    return clean_company_name(ask_gpt_for_company(article.text)), article.text
 
 
 def ask_gpt_for_company(content):

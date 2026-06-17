@@ -281,16 +281,27 @@ def generate_leads(recency_label, article_count):
         breach_summary = summarize_breach(full_text)
         severity_score = score_breach_severity(breach_summary)
         people = find_ciso_linkedin(company)
+        if not people:
+            people = [{
+                "name": "No matching CISO found",
+                "title": "Security contact not found",
+                "linkedin": "",
+                "email": "Unknown",
+                "contact_missing": True,
+            }]
 
-        for person in people:
-            email_draft = generate_email_draft(
-                name=person.get("name", "there"),
-                title=person.get("title", ""),
-                company=company,
-                breach_summary=breach_summary,
-                source=source,
-                date=date,
-            )
+        for person in people[:1]:
+            if person.get("contact_missing"):
+                email_draft = "No verified CISO contact was found for this company."
+            else:
+                email_draft = generate_email_draft(
+                    name=person.get("name", "there"),
+                    title=person.get("title", ""),
+                    company=company,
+                    breach_summary=breach_summary,
+                    source=source,
+                    date=date,
+                )
             person.update({
                 "company": company,
                 "article": url,
