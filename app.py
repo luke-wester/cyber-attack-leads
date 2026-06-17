@@ -179,7 +179,7 @@ PAGE_TEMPLATE = """
     <header>
       <div>
         <h1>Cyber Attack Leads</h1>
-        <p>Generate ranked outreach leads from recent cybersecurity breach and cyber attack news.</p>
+        <p>Pick a target number of leads. The app scans recent breach news, identifies the impacted company, attempts to find a CISO LinkedIn match, scores severity, and summarizes each article.</p>
       </div>
     </header>
 
@@ -197,16 +197,16 @@ PAGE_TEMPLATE = """
         </select>
       </label>
       <label>
-        Articles to analyze
-        <input name="article_count" type="number" min="5" max="50" value="{{ article_count }}">
+        Target lead count
+        <input name="target_lead_count" type="number" min="1" max="25" value="{{ target_lead_count }}">
       </label>
       <button type="submit">Generate lead list</button>
     </form>
-    <p class="busy">Generating leads. This can take up to a minute on Render's free tier.</p>
+    <p class="busy">Generating leads. The app may scan extra articles to hit your target.</p>
 
     {% if rows is not none %}
       <section class="summary">
-        <p>{{ rows|length }} lead{{ '' if rows|length == 1 else 's' }} generated from up to {{ article_count }} article{{ '' if article_count == 1 else 's' }}.</p>
+        <p>{{ rows|length }} of {{ target_lead_count }} target lead{{ '' if target_lead_count == 1 else 's' }} generated.</p>
         {% if csv_text %}
           <form method="post" action="/download">
             <textarea name="csv_text" hidden>{{ csv_text }}</textarea>
@@ -260,18 +260,19 @@ PAGE_TEMPLATE = """
 """
 
 
-def clamp_article_count(raw_value):
+def clamp_target_lead_count(raw_value):
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
-        return 10
-    return max(5, min(value, 50))
+        return 5
+    return max(1, min(value, 25))
 
 
-def generate_leads(recency_label, article_count):
+def generate_leads(recency_label, target_lead_count):
+    scan_limit = min(max(target_lead_count * 4, 10), 50)
     articles = search_breach_articles(
         tbs=RECENCY_MAP.get(recency_label, RECENCY_MAP["Past 24 hours"]),
-        num_results=article_count,
+        num_results=scan_limit,
     )
     output = []
 
@@ -322,6 +323,8 @@ def generate_leads(recency_label, article_count):
                 "email_draft": email_draft,
             })
             output.append(person)
+            if len(output) >= target_lead_count:
+                return output
 
     return output
 
@@ -335,14 +338,14 @@ def rows_to_csv(rows):
     return df.to_csv(index=False)
 
 
-def render_page(error=None, rows=None, csv_text="", selected_recency="Past 24 hours", article_count=10):
+def render_page(error=None, rows=None, csv_text="", selected_recency="Past 24 hours", target_lead_count=5):
     return render_template_string(
         PAGE_TEMPLATE,
         error=error,
         rows=rows,
         csv_text=csv_text,
         selected_recency=selected_recency,
-        article_count=article_count,
+        target_lead_count=target_lead_count,
         recency_labels=list(RECENCY_MAP.keys()),
     )
 
@@ -352,10 +355,10 @@ def index():
     return render_page()
 
 
-def run_job(job_id, recency_label, article_count):
+def run_job(job_id, recency_label, target_lead_count):
     JOBS[job_id]["status"] = "running"
     try:
-        rows = generate_leads(recency_label, article_count)
+        rows = generate_leads(recency_label, target_lead_count)
         JOBS[job_id].update({
             "status": "complete",
             "rows": rows,
@@ -378,13 +381,13 @@ def generate_get():
 def generate():
     missing_keys = missing_required_keys()
     recency_label = request.form.get("recency", "Past 24 hours")
-    article_count = clamp_article_count(request.form.get("article_count"))
+    target_lead_count = clamp_target_lead_count(request.form.get("target_lead_count"))
 
     if missing_keys:
         return render_page(
             error="Missing required environment variables: " + ", ".join(missing_keys),
             selected_recency=recency_label,
-            article_count=article_count,
+            target_lead_count=target_lead_count,
         ), 500
 
     job_id = uuid.uuid4().hex
@@ -394,9 +397,9 @@ def generate():
         "csv_text": "",
         "error": "",
         "selected_recency": recency_label,
-        "article_count": article_count,
+        "target_lead_count": target_lead_count,
     }
-    EXECUTOR.submit(run_job, job_id, recency_label, article_count)
+    EXECUTOR.submit(run_job, job_id, recency_label, target_lead_count)
     return redirect(url_for("job_status", job_id=job_id), code=303)
 
 
@@ -413,14 +416,14 @@ def job_status(job_id):
         return render_page(
             error="Lead generation failed: " + job.get("error", "Unknown error"),
             selected_recency=job.get("selected_recency", "Past 24 hours"),
-            article_count=job.get("article_count", 10),
+            target_lead_count=job.get("target_lead_count", 5),
         ), 500
 
     return render_page(
         rows=job.get("rows", []),
         csv_text=job.get("csv_text", ""),
         selected_recency=job.get("selected_recency", "Past 24 hours"),
-        article_count=job.get("article_count", 10),
+        target_lead_count=job.get("target_lead_count", 5),
     )
 
 
